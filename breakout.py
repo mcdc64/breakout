@@ -127,16 +127,18 @@ screen_height = 920
 # Set up the drawing window
 screen = pygame.display.set_mode([screen_width,screen_height])
 
-yscale = 2
-hypradius = (screen_width//20) - 1
+
 
 no_across = 8 #ratio of no_across:no_down should be a little higher than the ratio screen_width:screen_height
 no_down = 4
 
-x_step = screen_width//no_across
-y_step = screen_height//(3*(no_down-1))
+yscale = 2
+hypradius = ((screen_width//no_across) - 10)//2
 
-for i in range(hypradius,screen_width+hypradius,x_step): #we want 10 blocks across
+x_step = screen_width//no_across
+y_step = screen_height//(3*(no_down-1)+1)
+
+for i in range(hypradius,screen_width+hypradius,x_step):
     for j in range(hypradius//yscale,screen_height//3+1+hypradius//yscale,y_step):
         key_to_add = str(i)+"_"+str(j)
         print(key_to_add)
@@ -168,6 +170,8 @@ running = True
 last_time = pygame.time.get_ticks()
 paddle_collided = False
 paused = False
+has_won = False
+has_fake_won = False
 
 while running: #main while loop
 
@@ -242,17 +246,26 @@ while running: #main while loop
 
     if(ball.pos_y <= 0 and ball.vel_y < 0): # the player "wins" if they get the ball to the top of the screen
 
-        if(hidden_count<len(block_dict)):
-            false_win_text = "You broke out, but did not destroy all the blocks. Try to destroy them all for a higher score!"
-            false_win_img = font.render(false_win_text,True,(0,120,223))
-            img_dims = false_win_img.get_rect().size
-            screen.blit(false_win_img,((screen_width - img_dims[0])//2,(screen_height- img_dims[1])//2))
+        if(hidden_count<len(block_dict) and not has_fake_won and not has_won):
+            has_fake_won = True
 
-    if (hidden_count == len(block_dict)): #a "true" win occurs when all blocks are destroyed
+
+    if(has_fake_won and not has_won):
+        false_win_text = "You broke out, but did not destroy all the blocks. Try to destroy them all for a higher score!"
+        false_win_img = font.render(false_win_text, True, (0, 120, 223))
+        img_dims = false_win_img.get_rect().size
+        screen.blit(false_win_img,((screen_width - img_dims[0])//2,(screen_height- img_dims[1])//2))
+
+
+    if (hidden_count == len(block_dict) and not has_won): #a "true" win occurs when all blocks are destroyed
+        has_won = True
         score += 500 #500 extra points for destroying all blocks
-        true_win_text = "You destroyed all the blocks! You win!!\n"+score
+
+    if(has_won):
+        true_win_text = "You destroyed all the blocks! You win! Score:"+str(score)
         true_win_img = font.render(true_win_text, True, (0, 120, 223))
         img_dims = true_win_img.get_rect().size
+
         screen.blit(true_win_img,((screen_width-img_dims[0])//2,(screen_height-img_dims[1])//2))
 
 
