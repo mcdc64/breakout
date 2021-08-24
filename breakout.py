@@ -1,5 +1,6 @@
 import numpy as np
 import pygame
+import time
 from pygame.locals import K_p
 
 class Block(pygame.sprite.Sprite):
@@ -55,10 +56,24 @@ class Block(pygame.sprite.Sprite):
     def get_normal(self,x,y): #gets the normal at a particular point on the hyperellipse, with level sets
         return 4*np.asarray([(x-self.c_x)**3,(self.s_y**4)*(y-self.c_y)**3])
 
-    def update(self):
+    def update(self, difficulty):
         if (self.is_paddle):
             self.image = pygame.transform.scale(pygame.image.load("images/paddle_sprite.png"),(self.block_width,self.block_height))
             self.rect = pygame.Rect(self.c_x - self.block_width / 2, self.c_y - self.block_height / 2, self.block_width,self.block_height)
+        else:
+            if(difficulty == "Easy"):
+                self.image = pygame.transform.scale(pygame.image.load("images/easy_block_sprite.png"),  (self.block_width, self.block_height))
+                self.rect = pygame.Rect(self.c_x - self.block_width / 2, self.c_y - self.block_height / 2, self.block_width, self.block_height)
+            if (difficulty == "Medium"):
+                self.image = pygame.transform.scale(pygame.image.load("images/block_sprite.png"),
+                                                    (self.block_width, self.block_height))
+                self.rect = pygame.Rect(self.c_x - self.block_width / 2, self.c_y - self.block_height / 2,
+                                        self.block_width, self.block_height)
+            if (difficulty == "Hard"):
+                self.image = pygame.transform.scale(pygame.image.load("images/hard_block_sprite.png"),
+                                                    (self.block_width, self.block_height))
+                self.rect = pygame.Rect(self.c_x - self.block_width / 2, self.c_y - self.block_height / 2,
+                                        self.block_width, self.block_height)
 
     def draw(self,screen):
         screen.blit(self.image, self.rect)
@@ -137,7 +152,7 @@ hypradius = ((screen_width//no_across) - 10)//2
 
 x_step = screen_width//no_across
 y_step = screen_height//(3*(no_down-1)+1)
-
+'''
 for i in range(hypradius,screen_width+hypradius,x_step):
     for j in range(hypradius//yscale,screen_height//3+1+hypradius//yscale,y_step):
         key_to_add = str(i)+"_"+str(j)
@@ -145,33 +160,43 @@ for i in range(hypradius,screen_width+hypradius,x_step):
         print(hypradius)
         block_dict[key_to_add] = Block(i,j,yscale,hypradius)
         curr_block = block_dict[key_to_add]
-        screen.blit(curr_block.image,curr_block.rect)
+        #screen.blit(curr_block.image,curr_block.rect)
+'''
 
-
-ball = Ball(341,513,180,240,20)
+ball = Ball(341,313,180,240,20)
 
 ball_speed = np.linalg.norm((180,240))
 
 velocity_eps = 40 #minimum velocity
 paddle = Block(screen_width//2,8*screen_height//10,5,150,True)
-screen.blit(paddle.image,paddle.image_rect)
-screen.blit(ball.image,ball.image_rect)
+#screen.blit(paddle.image,paddle.image_rect)
+#screen.blit(ball.image,ball.image_rect)
 #print(ball.find_nearby_blocks(yscale,hypradius,10))
 
 score = 0
+lives = 3
 combo = 0 # no. of blocks broken in succession without hitting the paddle
 score_increment = 20
+sleep_counter = 0
 
 hidden_count = 0 # track no. of blocks broken
 
 # Run until the user asks to quit
 
+on_menu = True
+started_actual_game = False
 running = True
-last_time = pygame.time.get_ticks()
-paddle_collided = False
+difficulty = None # can be a str, "Easy", "Medium", or "Hard"
+last_time = pygame.time.get_ticks() #used to calculate time between frames
+paddle_collided = False # stops the ball colliding with the paddle more than once per "collision event"
 paused = False
-has_won = False
-has_fake_won = False
+has_won = False # has destroyed all blocks?
+has_fake_won = False # has broken out without destroying all blocks (and therefore has not really one)
+
+easy_rect = None
+medium_rect = None
+hard_rect = None
+
 
 while running: #main while loop
 
@@ -179,15 +204,73 @@ while running: #main while loop
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.KEYUP:
-            if event.key == pygame.locals.K_p:
+            if event.key == pygame.locals.K_p and not on_menu:
                 if paused:
                     paused = False
                 else:
                     paused = True
+        if event.type == pygame.MOUSEBUTTONUP:
+            pos = pygame.mouse.get_pos()
+            if(easy_rect.collidepoint(pos)):
+                difficulty = "Easy"
+                on_menu = False
+                ball_speed = 200
+            elif(medium_rect.collidepoint(pos)):
+                difficulty = "Medium"
+                on_menu = False
+                ball_speed = 300
+            elif(hard_rect.collidepoint(pos)):
+                difficulty = "Hard"
+                on_menu = False
+                ball_speed = 400
 
 
-    if(paused):
+    if (on_menu): # draw the menu if we haven't entered the actual game yet
+        logo_img = pygame.transform.scale(pygame.image.load("images/logo.png"),(screen_width//2,round(screen_width/4.5)//2))
+        easy_img = pygame.transform.scale(pygame.image.load("images/easy_button.png"),(screen_width//10, round(screen_width*0.5)//10))
+        medium_img = pygame.transform.scale(pygame.image.load("images/medium_button.png"), (screen_width // 10, round(screen_width * 0.5) // 10))
+        hard_img = pygame.transform.scale(pygame.image.load("images/hard_button.png"), (screen_width // 10, round(screen_width * 0.5) // 10))
+
+        logo_dims = logo_img.get_rect().size
+        logo_rect = pygame.Rect(screen_width // 2 - (logo_dims[0]//2), screen_height// 10, logo_dims[0],logo_dims[1])
+
+        button_dims = easy_img.get_rect().size
+        easy_rect = pygame.Rect(screen_width//2 - (button_dims[0])//2, 2*screen_height//5, button_dims[0],button_dims[1])
+        medium_rect = pygame.Rect(screen_width // 2 - (button_dims[0])//2, (3*screen_height) // 5, button_dims[0], button_dims[1])
+        hard_rect = pygame.Rect(screen_width // 2 - (button_dims[0])//2, (4*screen_height) // 5, button_dims[0], button_dims[1])
+
+
+        screen.blit(logo_img,logo_rect)
+        screen.blit(easy_img, easy_rect)
+        screen.blit(medium_img, medium_rect)
+        screen.blit(hard_img, hard_rect)
+        pygame.display.flip()
+        continue
+
+    if(not started_actual_game and not on_menu): # do all the things that only need to be done once, but depend on difficulty (and so can't be called outside the main loop)
+        started_actual_game = True
+        for i in range(hypradius, screen_width + hypradius, x_step):
+            for j in range(hypradius // yscale, screen_height // 3 + 1 + hypradius // yscale, y_step):
+                key_to_add = str(i) + "_" + str(j)
+                print(key_to_add)
+                print(hypradius)
+                block_dict[key_to_add] = Block(i, j, yscale, hypradius)
+                curr_block = block_dict[key_to_add]
+                curr_block.update(difficulty)
+                # screen.blit(curr_block.image,curr_block.rect)
+        if(difficulty == "Easy"):
+            lives = 5
+        elif(difficulty == "Hard"):
+            lives = 2
+        ball = Ball(341, 413, 200, 240, 20)
+
+    if(paused or sleep_counter>0):
+        if (sleep_counter > 0):
+            this_time = pygame.time.get_ticks()
+            delta_t = (this_time - last_time)/1000
+            sleep_counter -= delta_t
         last_time = pygame.time.get_ticks()
+
         continue
     this_time = pygame.time.get_ticks()
     delta_t = (this_time - last_time)/1000 #get time between this frame and the last. Used to update the ball position
@@ -200,6 +283,7 @@ while running: #main while loop
     for key in block_dict: #draw all of the blocks in block_dict
         curr_block = block_dict[key]
         if(not block_dict[key].hidden):
+            #curr_block.update(difficulty)
             screen.blit(curr_block.image,curr_block.rect)
 
     ball.pos_x += ball.vel_x*delta_t
@@ -271,15 +355,31 @@ while running: #main while loop
 
 
     if(ball.pos_y>screen_height-ball.radius and ball.vel_y>0):
-        ball.vel_y = -ball.vel_y
-    paddle.update()
+
+        lose_text = ""
+        if(lives > 0):
+            lives -= 1
+            lose_text = "You lost a life!"
+            sleep_counter = 3
+            ball = Ball(341,413,200,240,20)
+        else:
+            lose_text = "You lose!"
+            sleep_counter = 10000
+        lose_img = font.render(lose_text,True,(0,120,223))
+        img_dims = lose_img.get_rect().size
+        screen.blit(lose_img, ((screen_width - img_dims[0]) // 2, (screen_height - img_dims[1]) // 2))
+
+
+    paddle.update(difficulty)
     paddle.draw(screen)
 
     font = pygame.font.SysFont(None, 24)
     score_img = font.render("Score: "+str(score), True, (0,120,223))
     combo_img = font.render("Combo: "+str(combo),True,(0,120,223))
-    screen.blit(score_img, (50, screen_height - 100))
-    screen.blit(combo_img, (50, screen_height - 50))
+    lives_img = font.render("Lives: "+str(lives),True,(0,120,223))
+    screen.blit(score_img, (50, screen_height - 150))
+    screen.blit(combo_img, (50, screen_height - 100))
+    screen.blit(lives_img,(50,screen_height-50))
 
 
     # Did the user click the window close button?
